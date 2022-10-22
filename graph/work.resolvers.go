@@ -5,17 +5,14 @@ package graph
 
 import (
 	"context"
-	"fmt"
-
 	"github.com/shion0625/my-portfolio-backend/graph/generated"
 	"github.com/shion0625/my-portfolio-backend/graph/model"
 )
 
 // User is the resolver for the user field.
 func (r *workResolver) User(ctx context.Context, obj *model.Work) (*model.User, error) {
-	// user, err := r.UserLoader.Load("123")
-
-	panic(fmt.Errorf("not implemented: User - user"))
+	user, err :=r.UserLoader.Load(obj.UserID)
+	return user, err
 }
 
 // Work returns generated.WorkResolver implementation.

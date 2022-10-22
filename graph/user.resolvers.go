@@ -5,7 +5,6 @@ package graph
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/shion0625/my-portfolio-backend/graph/generated"
 	"github.com/shion0625/my-portfolio-backend/graph/model"
@@ -13,8 +12,20 @@ import (
 
 // Works is the resolver for the works field.
 func (r *userResolver) Works(ctx context.Context, obj *model.User) (*model.WorkPagination, error) {
-	// work, err := r.WorkLoader.Load("123")
-	panic(fmt.Errorf("not implemented: Works - works"))
+	works,err :=r.WorkLoader.Load(obj.ID)
+	pageInfo := model.PaginationInfo{
+		Page:             1,
+		PaginationLength: 1,
+		HasNextPage:      false,
+		HasPreviousPage:  false,
+		Count:            len(works),
+		TotalCount:       len(works),
+	}
+	pagination := model.WorkPagination{
+		PageInfo: &pageInfo,
+		Nodes:    works,
+	}
+	return &pagination, err
 }
 
 // User returns generated.UserResolver implementation.

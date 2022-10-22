@@ -5,14 +5,14 @@ package dataloader
 import (
 	"sync"
 	"time"
-	"strconv"
+
 	"github.com/shion0625/my-portfolio-backend/graph/model"
 )
 
 // WorkLoaderConfig captures the config to create a new WorkLoader
 type WorkLoaderConfig struct {
 	// Fetch is a method that provides the data for the loader
-	Fetch func(keys []string) ([]*model.Work, []error)
+	Fetch func(keys []string) ([][]*model.Work, []error)
 
 	// Wait is how long wait before sending a batch
 	Wait time.Duration
@@ -22,26 +22,18 @@ type WorkLoaderConfig struct {
 }
 
 // NewWorkLoader creates a new WorkLoader given a fetch, wait, and maxBatch
-func NewWorkLoader() *WorkLoader {
+func NewWorkLoader(config WorkLoaderConfig) *WorkLoader {
 	return &WorkLoader{
-		wait:     2 * time.Millisecond,
-		maxBatch: 100,
-		fetch: func(keys []string) ([]*model.Work, []error) {
-			works := make([]*model.Work, len(keys))
-			errors := make([]error, len(keys))
-
-			for i, key := range keys {
-				works[i] = &model.Work{ID: key, Title: "work"+strconv.Itoa(i)+ " " + key}
-			}
-			return works, errors
-		},
+		fetch:    config.Fetch,
+		wait:     config.Wait,
+		maxBatch: config.MaxBatch,
 	}
 }
 
 // WorkLoader batches and caches requests
 type WorkLoader struct {
 	// this method provides the data for the loader
-	fetch func(keys []string) ([]*model.Work, []error)
+	fetch func(keys []string) ([][]*model.Work, []error)
 
 	// how long to done before sending a batch
 	wait time.Duration
@@ -52,7 +44,7 @@ type WorkLoader struct {
 	// INTERNAL
 
 	// lazily created cache
-	cache map[string]*model.Work
+	cache map[string][]*model.Work
 
 	// the current batch. keys will continue to be collected until timeout is hit,
 	// then everything will be sent to the fetch method and out to the listeners
@@ -64,25 +56,25 @@ type WorkLoader struct {
 
 type workLoaderBatch struct {
 	keys    []string
-	data    []*model.Work
+	data    [][]*model.Work
 	error   []error
 	closing bool
 	done    chan struct{}
 }
 
 // Load a Work by key, batching and caching will be applied automatically
-func (l *WorkLoader) Load(key string) (*model.Work, error) {
+func (l *WorkLoader) Load(key string) ([]*model.Work, error) {
 	return l.LoadThunk(key)()
 }
 
 // LoadThunk returns a function that when called will block waiting for a Work.
 // This method should be used if you want one goroutine to make requests to many
 // different data loaders without blocking until the thunk is called.
-func (l *WorkLoader) LoadThunk(key string) func() (*model.Work, error) {
+func (l *WorkLoader) LoadThunk(key string) func() ([]*model.Work, error) {
 	l.mu.Lock()
 	if it, ok := l.cache[key]; ok {
 		l.mu.Unlock()
-		return func() (*model.Work, error) {
+		return func() ([]*model.Work, error) {
 			return it, nil
 		}
 	}
@@ -93,10 +85,10 @@ func (l *WorkLoader) LoadThunk(key string) func() (*model.Work, error) {
 	pos := batch.keyIndex(l, key)
 	l.mu.Unlock()
 
-	return func() (*model.Work, error) {
+	return func() ([]*model.Work, error) {
 		<-batch.done
 
-		var data *model.Work
+		var data []*model.Work
 		if pos < len(batch.data) {
 			data = batch.data[pos]
 		}
@@ -121,14 +113,14 @@ func (l *WorkLoader) LoadThunk(key string) func() (*model.Work, error) {
 
 // LoadAll fetches many keys at once. It will be broken into appropriate sized
 // sub batches depending on how the loader is configured
-func (l *WorkLoader) LoadAll(keys []string) ([]*model.Work, []error) {
-	results := make([]func() (*model.Work, error), len(keys))
+func (l *WorkLoader) LoadAll(keys []string) ([][]*model.Work, []error) {
+	results := make([]func() ([]*model.Work, error), len(keys))
 
 	for i, key := range keys {
 		results[i] = l.LoadThunk(key)
 	}
 
-	works := make([]*model.Work, len(keys))
+	works := make([][]*model.Work, len(keys))
 	errors := make([]error, len(keys))
 	for i, thunk := range results {
 		works[i], errors[i] = thunk()
@@ -139,13 +131,13 @@ func (l *WorkLoader) LoadAll(keys []string) ([]*model.Work, []error) {
 // LoadAllThunk returns a function that when called will block waiting for a Works.
 // This method should be used if you want one goroutine to make requests to many
 // different data loaders without blocking until the thunk is called.
-func (l *WorkLoader) LoadAllThunk(keys []string) func() ([]*model.Work, []error) {
-	results := make([]func() (*model.Work, error), len(keys))
+func (l *WorkLoader) LoadAllThunk(keys []string) func() ([][]*model.Work, []error) {
+	results := make([]func() ([]*model.Work, error), len(keys))
 	for i, key := range keys {
 		results[i] = l.LoadThunk(key)
 	}
-	return func() ([]*model.Work, []error) {
-		works := make([]*model.Work, len(keys))
+	return func() ([][]*model.Work, []error) {
+		works := make([][]*model.Work, len(keys))
 		errors := make([]error, len(keys))
 		for i, thunk := range results {
 			works[i], errors[i] = thunk()
@@ -157,14 +149,15 @@ func (l *WorkLoader) LoadAllThunk(keys []string) func() ([]*model.Work, []error)
 // Prime the cache with the provided key and value. If the key already exists, no change is made
 // and false is returned.
 // (To forcefully prime the cache, clear the key first with loader.clear(key).prime(key, value).)
-func (l *WorkLoader) Prime(key string, value *model.Work) bool {
+func (l *WorkLoader) Prime(key string, value []*model.Work) bool {
 	l.mu.Lock()
 	var found bool
 	if _, found = l.cache[key]; !found {
 		// make a copy when writing to the cache, its easy to pass a pointer in from a loop var
 		// and end up with the whole cache pointing to the same value.
-		cpy := *value
-		l.unsafeSet(key, &cpy)
+		cpy := make([]*model.Work, len(value))
+		copy(cpy, value)
+		l.unsafeSet(key, cpy)
 	}
 	l.mu.Unlock()
 	return !found
@@ -177,9 +170,9 @@ func (l *WorkLoader) Clear(key string) {
 	l.mu.Unlock()
 }
 
-func (l *WorkLoader) unsafeSet(key string, value *model.Work) {
+func (l *WorkLoader) unsafeSet(key string, value []*model.Work) {
 	if l.cache == nil {
-		l.cache = map[string]*model.Work{}
+		l.cache = map[string][]*model.Work{}
 	}
 	l.cache[key] = value
 }

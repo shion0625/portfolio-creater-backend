@@ -5,7 +5,7 @@ package dataloader
 import (
 	"sync"
 	"time"
-	"strconv"
+
 	"github.com/shion0625/my-portfolio-backend/graph/model"
 )
 
@@ -22,21 +22,14 @@ type UserLoaderConfig struct {
 }
 
 // NewUserLoader creates a new UserLoader given a fetch, wait, and maxBatch
-func NewUserLoader() *UserLoader {
+func NewUserLoader(config UserLoaderConfig) *UserLoader {
 	return &UserLoader{
-		wait:     2 * time.Millisecond,
-		maxBatch: 100,
-		fetch: func(keys []string) ([]*model.User, []error) {
-			users := make([]*model.User, len(keys))
-			errors := make([]error, len(keys))
-
-			for i, key := range keys {
-				users[i] = &model.User{ID: key, Name: "user"+ strconv.Itoa(i)+ " " + key}
-			}
-			return users, errors
-		},
+		fetch:    config.Fetch,
+		wait:     config.Wait,
+		maxBatch: config.MaxBatch,
 	}
 }
+
 // UserLoader batches and caches requests
 type UserLoader struct {
 	// this method provides the data for the loader
