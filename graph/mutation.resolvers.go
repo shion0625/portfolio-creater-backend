@@ -11,39 +11,12 @@ import (
 
 	"github.com/shion0625/my-portfolio-backend/graph/generated"
 	"github.com/shion0625/my-portfolio-backend/graph/model"
+	"github.com/shion0625/my-portfolio-backend/service"
 )
-
-// CreateUser is the resolver for the createUser field.
-func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUserInput) (*model.User, error) {
-	id := fmt.Sprintf("%v:%d", input.Email, rand.Int())
-	user := model.User{
-		ID:       base64.StdEncoding.EncodeToString([]byte(id)),
-		IsAdmin:  input.IsAdmin,
-		Name:     input.Name,
-		Email:    input.Email,
-		Password: input.Password,
-		IsAble:   true,
-	}
-	result := r.DB.Create(&user)
-	return &user, result.Error
-}
 
 // UpdateUser is the resolver for the updateUser field.
 func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUserInput) (*model.User, error) {
-	user := model.User{ID: input.ID}
-	r.DB.First(&user)
-	if input.IsAdmin == nil {
-		input.IsAdmin = &user.IsAdmin
-	}
-	if input.Name == nil {
-		input.Name = &user.Name
-	}
-	if input.Email == nil {
-		input.Email = &user.Email
-	}
-	r.DB.Model(&user).Updates(model.User{IsAdmin: *input.IsAdmin, Name: *input.Name, Email: *input.Email})
-	result := r.DB.Save(&user)
-	return &user, result.Error
+	return service.UserUpdateByID(ctx, input)
 }
 
 // DeleteUser is the resolver for the deleteUser field.
@@ -85,10 +58,6 @@ func (r *mutationResolver) UpdateWork(ctx context.Context, input model.UpdateWor
 	if input.Title == nil {
 		input.Title = &work.Title
 	}
-	if input.URL == nil {
-		input.URL = &work.URL
-	}
-
 	r.DB.First(&work)
 	r.DB.Model(&work).Updates(model.Work{
 		Title:          *input.Title,
@@ -98,7 +67,7 @@ func (r *mutationResolver) UpdateWork(ctx context.Context, input model.UpdateWor
 		NumberOfPeople: input.NumberOfPeople,
 		Language:       input.Language,
 		Role:           input.Role,
-		URL:            *input.URL,
+		URL:            input.URL,
 		BriefStory:     input.BriefStory,
 	})
 	result := r.DB.Save(&work)
@@ -114,6 +83,16 @@ func (r *mutationResolver) DeleteWork(ctx context.Context, id string) (*bool, er
 		b = false
 	}
 	return &b, result.Error
+}
+
+// Login is the resolver for the login field.
+func (r *mutationResolver) Login(ctx context.Context, email string, password string) (interface{}, error) {
+	return service.UserLogin(ctx, email, password)
+}
+
+// Register is the resolver for the register field.
+func (r *mutationResolver) Register(ctx context.Context, input model.CreateUserInput) (interface{}, error) {
+	return service.UserRegister(ctx, input)
 }
 
 // Mutation returns generated.MutationResolver implementation.

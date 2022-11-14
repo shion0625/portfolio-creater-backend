@@ -1,7 +1,7 @@
 gqlgen:
 	go run github.com/99designs/gqlgen generate
 run:
-	go run main.go
+	go run server.go
 db:
 	docker compose exec db sh
 sql:
@@ -16,5 +16,7 @@ migrate-force:
 	migrate -database postgres://shion0625:Xshion0912@localhost:5432/portfolio?sslmode=disable -path db/migrations force 2
 graphql:
 	go run github.com/99designs/gqlgen
-generate:
+gen:
 	go generate ./...
+fmt:
+	go fmt ./**/*.go
