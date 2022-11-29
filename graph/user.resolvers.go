@@ -5,10 +5,16 @@ package graph
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/shion0625/my-portfolio-backend/graph/generated"
 	"github.com/shion0625/my-portfolio-backend/graph/model"
 )
+
+// EmailVerified is the resolver for the emailVerified field.
+func (r *userResolver) EmailVerified(ctx context.Context, obj *model.User) ([]*string, error) {
+	panic(fmt.Errorf("not implemented: EmailVerified - emailVerified"))
+}
 
 // Works is the resolver for the works field.
 func (r *userResolver) Works(ctx context.Context, obj *model.User) (*model.WorkPagination, error) {
@@ -26,6 +32,11 @@ func (r *userResolver) Works(ctx context.Context, obj *model.User) (*model.WorkP
 		Nodes:    works,
 	}
 	return &pagination, err
+}
+
+// Profile is the resolver for the profile field.
+func (r *userResolver) Profile(ctx context.Context, obj *model.User) (*model.Profile, error) {
+	panic(fmt.Errorf("not implemented: Profile - profile"))
 }
 
 // User returns generated.UserResolver implementation.

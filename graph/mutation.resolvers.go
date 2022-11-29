@@ -14,22 +14,9 @@ import (
 	"github.com/shion0625/my-portfolio-backend/service"
 )
 
-// UpdateUser is the resolver for the updateUser field.
-func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUserInput) (*model.User, error) {
-	return service.UserUpdateByID(ctx, input)
-}
-
-// DeleteUser is the resolver for the deleteUser field.
-func (r *mutationResolver) DeleteUser(ctx context.Context, id string) (*bool, error) {
-	user := model.User{ID: id}
-	r.DB.First(&user)
-	r.DB.Model(&user).Update("IsAble", true)
-	result := r.DB.Save(&user)
-	b := true
-	if result.Error != nil {
-		b = false
-	}
-	return &b, result.Error
+// UpdateProfile is the resolver for the updateProfile field.
+func (r *mutationResolver) UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (*model.User, error) {
+	panic(fmt.Errorf("not implemented: UpdateProfile - updateProfile"))
 }
 
 // CreateWork is the resolver for the createWork field.
@@ -86,13 +73,8 @@ func (r *mutationResolver) DeleteWork(ctx context.Context, id string) (*bool, er
 }
 
 // Login is the resolver for the login field.
-func (r *mutationResolver) Login(ctx context.Context, email string, password string) (interface{}, error) {
-	return service.UserLogin(ctx, email, password)
-}
-
-// Register is the resolver for the register field.
-func (r *mutationResolver) Register(ctx context.Context, input model.CreateUserInput) (interface{}, error) {
-	return service.UserRegister(ctx, input)
+func (r *mutationResolver) Login(ctx context.Context, id string, email string) (interface{}, error) {
+	return service.UserLogin(ctx, id, email)
 }
 
 // Mutation returns generated.MutationResolver implementation.
