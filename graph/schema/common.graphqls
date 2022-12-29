@@ -1,8 +1,12 @@
+## common.graphqls ===============================================
+
 interface Node {
   id: ID!
 }
 
 scalar Timestamp
+scalar DateTime
+
 scalar Any
 
 directive @auth on FIELD_DEFINITION

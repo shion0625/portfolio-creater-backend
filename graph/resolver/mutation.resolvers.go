@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math/rand"
+	"time"
 
 	"github.com/shion0625/my-portfolio-backend/graph/generated"
 	"github.com/shion0625/my-portfolio-backend/graph/model"
@@ -33,6 +34,9 @@ func (r *mutationResolver) CreateWork(ctx context.Context, input model.CreateWor
 		Role:           input.Role,
 		URL:            input.URL,
 		BriefStory:     input.BriefStory,
+		CreatedAt:      service.Time2str(time.Now()),
+		UpdatedAt:      service.Time2str(time.Now()),
+		IsDelete:       false,
 		UserID:         input.UserID,
 	}
 	r.DB.Create(&work)
@@ -56,20 +60,20 @@ func (r *mutationResolver) UpdateWork(ctx context.Context, input model.UpdateWor
 		Role:           input.Role,
 		URL:            input.URL,
 		BriefStory:     input.BriefStory,
+		UpdatedAt:      service.Time2str(time.Now()),
 	})
 	result := r.DB.Save(&work)
 	return &work, result.Error
 }
 
-// DeleteWork is the resolver for the deleteWork field.
-func (r *mutationResolver) DeleteWork(ctx context.Context, id string) (*bool, error) {
-	work := model.Work{ID: id}
-	result := r.DB.Delete(&work)
-	b := true
-	if result.Error != nil {
-		b = false
+// DeleteWorks is the resolver for the deleteWorks field.
+func (r *mutationResolver) DeleteWorks(ctx context.Context, id []*string) (*bool, error) {
+	result := r.DB.Model(model.Work{}).Where("id IN ?", id).Updates(model.Work{IsDelete: true, UpdatedAt: service.Time2str(time.Now())})
+	ans := false
+	if result.Error == nil {
+		ans = true
 	}
-	return &b, result.Error
+	return &ans, result.Error
 }
 
 // Login is the resolver for the login field.
@@ -81,3 +85,19 @@ func (r *mutationResolver) Login(ctx context.Context, id string, email string) (
 func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
 
 type mutationResolver struct{ *Resolver }
+
+// !!! WARNING !!!
+// The code below was going to be deleted when updating resolvers. It has been copied here so you have
+// one last chance to move it out of harms way if you want. There are two reasons this happens:
+//   - When renaming or deleting a resolver the old code will be put in here. You can safely delete
+//     it when you're done.
+//   - You have helper methods in this file. Move them out to keep these resolver files clean.
+func (r *mutationResolver) DeleteWork(ctx context.Context, id string) (*bool, error) {
+	work := model.Work{ID: id}
+	result := r.DB.Delete(&work)
+	b := true
+	if result.Error != nil {
+		b = false
+	}
+	return &b, result.Error
+}

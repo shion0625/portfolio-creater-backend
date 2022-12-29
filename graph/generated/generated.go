@@ -50,7 +50,7 @@ type DirectiveRoot struct {
 type ComplexityRoot struct {
 	Mutation struct {
 		CreateWork    func(childComplexity int, input model.CreateWorkInput) int
-		DeleteWork    func(childComplexity int, id string) int
+		DeleteWorks   func(childComplexity int, id []*string) int
 		Login         func(childComplexity int, id string, email string) int
 		UpdateProfile func(childComplexity int, input model.UpdateProfileInput) int
 		UpdateWork    func(childComplexity int, input model.UpdateWorkInput) int
@@ -96,15 +96,18 @@ type ComplexityRoot struct {
 
 	Work struct {
 		BriefStory     func(childComplexity int) int
+		CreatedAt      func(childComplexity int) int
 		Duration       func(childComplexity int) int
 		ID             func(childComplexity int) int
 		ImageURL       func(childComplexity int) int
+		IsDelete       func(childComplexity int) int
 		Language       func(childComplexity int) int
 		NumberOfPeople func(childComplexity int) int
 		Role           func(childComplexity int) int
 		Summary        func(childComplexity int) int
 		Title          func(childComplexity int) int
 		URL            func(childComplexity int) int
+		UpdatedAt      func(childComplexity int) int
 		User           func(childComplexity int) int
 	}
 
@@ -118,7 +121,7 @@ type MutationResolver interface {
 	UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (*model.User, error)
 	CreateWork(ctx context.Context, input model.CreateWorkInput) (*model.Work, error)
 	UpdateWork(ctx context.Context, input model.UpdateWorkInput) (*model.Work, error)
-	DeleteWork(ctx context.Context, id string) (*bool, error)
+	DeleteWorks(ctx context.Context, id []*string) (*bool, error)
 	Login(ctx context.Context, id string, email string) (interface{}, error)
 }
 type QueryResolver interface {
@@ -164,17 +167,17 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.CreateWork(childComplexity, args["input"].(model.CreateWorkInput)), true
 
-	case "Mutation.deleteWork":
-		if e.complexity.Mutation.DeleteWork == nil {
+	case "Mutation.deleteWorks":
+		if e.complexity.Mutation.DeleteWorks == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_deleteWork_args(context.TODO(), rawArgs)
+		args, err := ec.field_Mutation_deleteWorks_args(context.TODO(), rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.complexity.Mutation.DeleteWork(childComplexity, args["id"].(string)), true
+		return e.complexity.Mutation.DeleteWorks(childComplexity, args["id"].([]*string)), true
 
 	case "Mutation.login":
 		if e.complexity.Mutation.Login == nil {
@@ -400,6 +403,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Work.BriefStory(childComplexity), true
 
+	case "Work.created_at":
+		if e.complexity.Work.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.Work.CreatedAt(childComplexity), true
+
 	case "Work.duration":
 		if e.complexity.Work.Duration == nil {
 			break
@@ -420,6 +430,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Work.ImageURL(childComplexity), true
+
+	case "Work.is_delete":
+		if e.complexity.Work.IsDelete == nil {
+			break
+		}
+
+		return e.complexity.Work.IsDelete(childComplexity), true
 
 	case "Work.language":
 		if e.complexity.Work.Language == nil {
@@ -462,6 +479,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Work.URL(childComplexity), true
+
+	case "Work.updated_at":
+		if e.complexity.Work.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.Work.UpdatedAt(childComplexity), true
 
 	case "Work.user":
 		if e.complexity.Work.User == nil {
@@ -555,11 +579,15 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 }
 
 var sources = []*ast.Source{
-	{Name: "../schema/common.graphqls", Input: `interface Node {
+	{Name: "../schema/common.graphqls", Input: `## common.graphqls ===============================================
+
+interface Node {
   id: ID!
 }
 
 scalar Timestamp
+scalar DateTime
+
 scalar Any
 
 directive @auth on FIELD_DEFINITION
@@ -579,12 +607,14 @@ type PaginationInfo {
   totalCount: Int!
 }
 `, BuiltIn: false},
-	{Name: "../schema/mutation.graphqls", Input: `### Mutation(更新系)の定義
+	{Name: "../schema/mutation.graphqls", Input: `## mutation.graphqls ===============================================
+
+### Mutation(更新系)の定義
 type Mutation {
   updateProfile(input: UpdateProfileInput!): User! @auth
   createWork(input: CreateWorkInput!): Work!  @auth
   updateWork(input: UpdateWorkInput!): Work! @auth
-  deleteWork(id: ID!): Boolean @auth
+  deleteWorks(id: [ID]!): Boolean @auth
   login(id: String!, email: String!): Any!
 }
 
@@ -629,14 +659,18 @@ enum Role {
   VIEWER
 }
 `, BuiltIn: false},
-	{Name: "../schema/profile.graphqls", Input: `type Profile {
+	{Name: "../schema/profile.graphqls", Input: `## profile.graphqls ===============================================
+
+type Profile {
   id: ID!
   birthday: Timestamp
   comment: String
   user: User!
   }
 `, BuiltIn: false},
-	{Name: "../schema/query.graphqls", Input: `###  Query(read系)
+	{Name: "../schema/query.graphqls", Input: `## query.graphqls ===============================================
+
+###  Query(read系)
 type Query {
   user(id: ID!): User!
   users(limit: Int!, offset: Int): UserPagination!
@@ -644,7 +678,9 @@ type Query {
   works(limit: Int!, offset: Int): WorkPagination!
 }
 `, BuiltIn: false},
-	{Name: "../schema/user.graphqls", Input: `type User implements Node{
+	{Name: "../schema/user.graphqls", Input: `## user.graphqls ===============================================
+
+type User implements Node{
   id: ID!
   name: String
   email: String
@@ -659,7 +695,9 @@ type UserPagination implements Pagination{
   nodes: [User!]!
 }
 `, BuiltIn: false},
-	{Name: "../schema/work.graphqls", Input: `type Work implements Node{
+	{Name: "../schema/work.graphqls", Input: `## work.graphqls ===============================================
+
+type Work implements Node{
   id: ID!
   title: String!
   summary: String
@@ -670,6 +708,9 @@ type UserPagination implements Pagination{
   role: String
   url: String
   brief_story: String
+  created_at: DateTime!
+  updated_at: DateTime!
+  is_delete: Boolean!
   user: User!
   }
 
@@ -715,13 +756,13 @@ func (ec *executionContext) field_Mutation_createWork_args(ctx context.Context, 
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_deleteWork_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+func (ec *executionContext) field_Mutation_deleteWorks_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 string
+	var arg0 []*string
 	if tmp, ok := rawArgs["id"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
-		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+		arg0, err = ec.unmarshalNID2ᚕᚖstring(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -1085,6 +1126,12 @@ func (ec *executionContext) fieldContext_Mutation_createWork(ctx context.Context
 				return ec.fieldContext_Work_url(ctx, field)
 			case "brief_story":
 				return ec.fieldContext_Work_brief_story(ctx, field)
+			case "created_at":
+				return ec.fieldContext_Work_created_at(ctx, field)
+			case "updated_at":
+				return ec.fieldContext_Work_updated_at(ctx, field)
+			case "is_delete":
+				return ec.fieldContext_Work_is_delete(ctx, field)
 			case "user":
 				return ec.fieldContext_Work_user(ctx, field)
 			}
@@ -1184,6 +1231,12 @@ func (ec *executionContext) fieldContext_Mutation_updateWork(ctx context.Context
 				return ec.fieldContext_Work_url(ctx, field)
 			case "brief_story":
 				return ec.fieldContext_Work_brief_story(ctx, field)
+			case "created_at":
+				return ec.fieldContext_Work_created_at(ctx, field)
+			case "updated_at":
+				return ec.fieldContext_Work_updated_at(ctx, field)
+			case "is_delete":
+				return ec.fieldContext_Work_is_delete(ctx, field)
 			case "user":
 				return ec.fieldContext_Work_user(ctx, field)
 			}
@@ -1204,8 +1257,8 @@ func (ec *executionContext) fieldContext_Mutation_updateWork(ctx context.Context
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_deleteWork(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_deleteWork(ctx, field)
+func (ec *executionContext) _Mutation_deleteWorks(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_deleteWorks(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -1219,7 +1272,7 @@ func (ec *executionContext) _Mutation_deleteWork(ctx context.Context, field grap
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		directive0 := func(rctx context.Context) (interface{}, error) {
 			ctx = rctx // use context from middleware stack in children
-			return ec.resolvers.Mutation().DeleteWork(rctx, fc.Args["id"].(string))
+			return ec.resolvers.Mutation().DeleteWorks(rctx, fc.Args["id"].([]*string))
 		}
 		directive1 := func(ctx context.Context) (interface{}, error) {
 			if ec.directives.Auth == nil {
@@ -1252,7 +1305,7 @@ func (ec *executionContext) _Mutation_deleteWork(ctx context.Context, field grap
 	return ec.marshalOBoolean2ᚖbool(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Mutation_deleteWork(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_deleteWorks(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -1269,7 +1322,7 @@ func (ec *executionContext) fieldContext_Mutation_deleteWork(ctx context.Context
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_deleteWork_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Mutation_deleteWorks_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return
 	}
@@ -1969,6 +2022,12 @@ func (ec *executionContext) fieldContext_Query_work(ctx context.Context, field g
 				return ec.fieldContext_Work_url(ctx, field)
 			case "brief_story":
 				return ec.fieldContext_Work_brief_story(ctx, field)
+			case "created_at":
+				return ec.fieldContext_Work_created_at(ctx, field)
+			case "updated_at":
+				return ec.fieldContext_Work_updated_at(ctx, field)
+			case "is_delete":
+				return ec.fieldContext_Work_is_delete(ctx, field)
 			case "user":
 				return ec.fieldContext_Work_user(ctx, field)
 			}
@@ -3019,6 +3078,138 @@ func (ec *executionContext) fieldContext_Work_brief_story(ctx context.Context, f
 	return fc, nil
 }
 
+func (ec *executionContext) _Work_created_at(ctx context.Context, field graphql.CollectedField, obj *model.Work) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Work_created_at(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CreatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNDateTime2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Work_created_at(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Work",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Work_updated_at(ctx context.Context, field graphql.CollectedField, obj *model.Work) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Work_updated_at(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.UpdatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNDateTime2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Work_updated_at(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Work",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Work_is_delete(ctx context.Context, field graphql.CollectedField, obj *model.Work) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Work_is_delete(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IsDelete, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Work_is_delete(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Work",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Work_user(ctx context.Context, field graphql.CollectedField, obj *model.Work) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Work_user(ctx, field)
 	if err != nil {
@@ -3196,6 +3387,12 @@ func (ec *executionContext) fieldContext_WorkPagination_nodes(ctx context.Contex
 				return ec.fieldContext_Work_url(ctx, field)
 			case "brief_story":
 				return ec.fieldContext_Work_brief_story(ctx, field)
+			case "created_at":
+				return ec.fieldContext_Work_created_at(ctx, field)
+			case "updated_at":
+				return ec.fieldContext_Work_updated_at(ctx, field)
+			case "is_delete":
+				return ec.fieldContext_Work_is_delete(ctx, field)
 			case "user":
 				return ec.fieldContext_Work_user(ctx, field)
 			}
@@ -5322,10 +5519,10 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
-		case "deleteWork":
+		case "deleteWorks":
 
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_deleteWork(ctx, field)
+				return ec._Mutation_deleteWorks(ctx, field)
 			})
 
 		case "login":
@@ -5767,6 +5964,27 @@ func (ec *executionContext) _Work(ctx context.Context, sel ast.SelectionSet, obj
 
 			out.Values[i] = ec._Work_brief_story(ctx, field, obj)
 
+		case "created_at":
+
+			out.Values[i] = ec._Work_created_at(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "updated_at":
+
+			out.Values[i] = ec._Work_updated_at(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "is_delete":
+
+			out.Values[i] = ec._Work_is_delete(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
 		case "user":
 			field := field
 
@@ -6192,6 +6410,21 @@ func (ec *executionContext) unmarshalNCreateWorkInput2githubᚗcomᚋshion0625�
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNDateTime2string(ctx context.Context, v interface{}) (string, error) {
+	res, err := graphql.UnmarshalString(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNDateTime2string(ctx context.Context, sel ast.SelectionSet, v string) graphql.Marshaler {
+	res := graphql.MarshalString(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
 func (ec *executionContext) unmarshalNID2string(ctx context.Context, v interface{}) (string, error) {
 	res, err := graphql.UnmarshalID(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -6205,6 +6438,32 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNID2ᚕᚖstring(ctx context.Context, v interface{}) ([]*string, error) {
+	var vSlice []interface{}
+	if v != nil {
+		vSlice = graphql.CoerceList(v)
+	}
+	var err error
+	res := make([]*string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalOID2ᚖstring(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNID2ᚕᚖstring(ctx context.Context, sel ast.SelectionSet, v []*string) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalOID2ᚖstring(ctx, sel, v[i])
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalNInt2int(ctx context.Context, v interface{}) (int, error) {
@@ -6748,6 +7007,22 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 		return graphql.Null
 	}
 	res := graphql.MarshalBoolean(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOID2ᚖstring(ctx context.Context, v interface{}) (*string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalID(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOID2ᚖstring(ctx context.Context, sel ast.SelectionSet, v *string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	res := graphql.MarshalID(*v)
 	return res
 }
 
