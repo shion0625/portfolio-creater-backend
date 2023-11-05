@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/99designs/gqlgen v0.17.20
 	github.com/golang-jwt/jwt/v4 v4.4.2
-	github.com/gorilla/sessions v1.2.1
+	github.com/gorilla/sessions v1.2.2
 	github.com/joho/godotenv v1.4.0
 	github.com/labstack/echo-contrib v0.13.0
 	github.com/labstack/echo/v4 v4.9.0
@@ -20,7 +20,7 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.1 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/gorilla/context v1.1.1 // indirect
-	github.com/gorilla/securecookie v1.1.1 // indirect
+	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
